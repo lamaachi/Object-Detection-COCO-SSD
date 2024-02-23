@@ -6,10 +6,10 @@ This application demonstrates real-time object detection using TensorFlow.js and
 
 ## Features
 
-- Real-time object detection from live camera feed
-- Detection of various common objects
-- User-friendly interface
-- Simple and intuitive design
+- 📷 Real-time object detection from live camera feed
+- 🛍️ Detection of various common objects
+- 🎨 User-friendly interface
+- 💡 Simple and intuitive design
 
 ## Technologies Used
 
