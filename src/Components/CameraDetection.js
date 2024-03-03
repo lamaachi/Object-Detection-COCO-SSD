@@ -5,62 +5,100 @@ const CameraDetection = () => {
   const videoRef = useRef();
   const canvasRef = useRef();
   const [detections, setDetections] = useState([]);
+  const modelRef = useRef();
+  const isProcessingRef = useRef(false);
 
   useEffect(() => {
-    const runObjectDetection = async () => {
-      try {
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    const startDetection = async () => {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
 
-        video.srcObject = stream;
+      if (!video || !canvas) return;
 
-        const model = await cocoSsd.load();
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+      video.play();
 
-        video.addEventListener('loadeddata', async () => {
-          video.play();
+      const model = await cocoSsd.load();
+      modelRef.current = model;
 
-          const detectFrame = async () => {
-            const predictions = await model.detect(video);
-            setDetections(predictions);
-            console.log("========================================"); // Log predictions
-            console.log(predictions); // Log predictions
-            drawBoundingBoxes(predictions, canvas);
-            requestAnimationFrame(detectFrame);
-          };
+      const detectFrame = async () => {
+        if (!isProcessingRef.current) {
+          isProcessingRef.current = true;
 
-          detectFrame();
-        });
-      } catch (error) {
-        console.error('Error accessing camera:', error);
-      }
+          const predictions = await detectObjects(model, video, canvas);
+          setDetections(predictions);
+
+          isProcessingRef.current = false;
+        }
+
+        requestAnimationFrame(detectFrame);
+      };
+
+      detectFrame();
     };
 
-    runObjectDetection();
+    startDetection(); 
 
     return () => {
-      // Cleanup code (e.g., stop the camera stream) can be added here
+      stopStream();
     };
   }, []);
 
-  const drawBoundingBoxes = (predictions, canvas) => {
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const stopStream = () => {
+    const video = videoRef.current;
+    if (video && video.srcObject) {
+      const stream = video.srcObject;
+      const tracks = stream.getTracks();
+      tracks.forEach(track => track.stop());
+    }
+  };
 
-    predictions.forEach((prediction) => {
-      // Draw bounding box
-      ctx.beginPath();
+  const detectObjects = async (model, video, canvas) => {
+    const { videoWidth, videoHeight } = video;
+    const aspectRatio = videoWidth / videoHeight;
+
+    // Calculating new dimensions for canvas
+    const maxWidth = 640;
+    const maxHeight = 480;
+    let newWidth = maxWidth;
+    let newHeight = maxHeight;
+
+    if (aspectRatio < 1) {
+      newHeight = maxHeight;
+      newWidth = Math.round(newHeight * aspectRatio);
+    } else {
+      newWidth = maxWidth;
+      newHeight = Math.round(newWidth / aspectRatio);
+    }
+
+    // Setting canvas dimensions
+    canvas.width = newWidth;
+    canvas.height = newHeight;
+
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, newWidth, newHeight);
+
+    const image = context.getImageData(0, 0, newWidth, newHeight);
+    const predictions = await model.detect(image);
+    drawBoundingBoxes(predictions, context);
+
+    return predictions;
+  };
+
+  const drawBoundingBoxes = (predictions, context) => {
+    predictions.forEach(prediction => {
       const [x, y, width, height] = prediction.bbox;
-      ctx.rect(x, y, width, height);
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'red';
-      ctx.fillStyle = 'transparent';
-      ctx.stroke();
+      context.beginPath();
+      context.rect(x, y, width, height);
+      context.lineWidth = 2;
+      context.strokeStyle = 'red';
+      context.fillStyle = 'transparent';
+      context.stroke();
 
-      // Display type and confidence
-      ctx.font = '14px Arial';
-      ctx.fillStyle = 'red';
-      ctx.fillText(
+      context.font = '14px Arial';
+      context.fillStyle = 'red';
+      context.fillText(
         `${prediction.class} - ${Math.round(prediction.score * 100)}%`,
         x,
         y > 10 ? y - 5 : 10
@@ -69,9 +107,31 @@ const CameraDetection = () => {
   };
 
   return (
-    <div style={{ textAlign: 'center' }}>
-      <video ref={videoRef} width="640" height="480" autoPlay playsInline muted></video>
-      <canvas ref={canvasRef} width="640" height="480" style={{ marginTop: '20px' }} />
+    <div style={{ textAlign: 'center', position: 'relative' }}>
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '300px',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 1,
+          display: 'none', // Hide video element
+        }}
+      ></video>
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '300px',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 0,
+        }}
+      ></canvas>
       <div style={{ marginTop: '20px' }}>
         {detections.map((detection, index) => (
           <p key={index}>

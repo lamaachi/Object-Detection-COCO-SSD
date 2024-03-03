@@ -63,14 +63,15 @@ const ObjectDetection = () => {
         const scaleX = canvas.width / imageElement.width;
         const scaleY = canvas.height / imageElement.height;
         ctx.rect(x * scaleX, y * scaleY, width * scaleX, height * scaleY);
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 4;
         ctx.strokeStyle = 'red';
         ctx.fillStyle = 'transparent';
         ctx.stroke();
 
         // Display type and confidence
-        ctx.font = '14px Arial';
+        ctx.font = '20px Arial';
         ctx.fillStyle = 'red';
+        ctx.backgound = 'white'
         ctx.fillText(
           `${prediction.class} - ${Math.round(prediction.score * 100)}%`,
           x * scaleX,
